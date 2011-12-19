@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+      <item android:id="@+id/choosemapforfeature"
+          android:icon="@drawable/icon_preference"
+          android:title="@string/choosemapforfeature"
+          />
+      
+      <item android:id="@+id/cluster"
+          android:icon="@drawable/icon_cluster"
+          android:title="@string/cluster"
+          /> 
+      <item android:id="@+id/definemapfeature"
+          android:icon="@drawable/icon_info"
+          android:title="@string/define"
+          /> 
+      <item android:id="@+id/writemapfeature"
+          android:icon="@drawable/icon_more"
+          android:title="@string/menu_dump"
+          /> 
+</menu>

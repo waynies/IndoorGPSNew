@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+
+    <string-array name="app_mode">
+        <item>Training mode</item>
+        <item>Localizer mode</item>
+        <item>Tracking mode</item>
+        <item>Navigation mode</item>
+    </string-array>
+
+    <string-array name="test_mode">
+        <item>Debug</item>
+        <item>Demo</item>
+        <item>Test</item>
+    </string-array>
+        
+    <string-array name="max_ap_array">
+        <item>50</item>
+        <item>100</item>
+        <item>150</item>
+    </string-array>
+
+    <string-array name="ap_array_values">
+        <item>50</item>
+        <item>100</item>
+        <item>150</item>
+    </string-array>
+    
+    <string-array name="sample_count_array">
+        <item>1</item>
+        <item>3</item>
+        <item>5</item>
+    </string-array>
+    
+    <string-array name="num_ap_array">
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
+        <item>12</item>
+        <item>15</item>
+        <item>20</item>
+        <item>25</item>
+    </string-array>
+    
+    <string-array name="building_array">
+        <item>Bahen</item>
+        <item>CNIB</item>
+    </string-array>
+    
+    <string-array name="floor_array">
+        <item>2</item>
+        <item>4</item>
+    </string-array>
+    
+    <string-array name="orientation_list">
+        <item>North</item>
+        <item>East</item>
+        <item>South</item>
+        <item>West</item>
+        <item>None</item>
+    </string-array>
+    
+</resources>

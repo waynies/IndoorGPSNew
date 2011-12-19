@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:scrollbars="vertical"
+    >
+   
+    <LinearLayout android:orientation="horizontal"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content">
+
+		<TextView
+			android:id="@+id/mainText"  
+    		android:layout_width="fill_parent" 
+   	 		android:layout_height="300sp" 
+   	 		android:maxLines="15"
+   	 		android:scrollbars="vertical"
+    		android:text="@string/hello"
+    	/>		
+	</LinearLayout>
+	<LinearLayout android:orientation="horizontal"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content">
+
+		<TextView android:layout_width="wrap_content"
+			android:layout_height="wrap_content" 
+			android:text="@string/Samples" />
+		<EditText android:id="@+id/numSamples" 
+		  android:layout_width="fill_parent"
+			android:layout_height="wrap_content" 
+			android:layout_weight="1"/>
+		
+		<TextView android:layout_width="wrap_content"
+			android:layout_height="wrap_content" 
+			android:text="@string/X_Coordinate" />
+		<EditText android:id="@+id/xcoord" 
+		  android:layout_width="fill_parent"
+			android:layout_height="wrap_content" 
+			android:layout_weight="1"/>
+			
+		<TextView android:layout_width="wrap_content"
+			android:layout_height="wrap_content" 
+			android:text="@string/Y_Coordinate" />
+		<EditText android:id="@+id/ycoord" 
+		  android:layout_width="fill_parent"
+			android:layout_height="wrap_content" 
+			android:layout_weight="1"/>
+	</LinearLayout>
+	
+	<LinearLayout android:orientation="vertical"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content">		
+		
+		<TextView android:layout_width="wrap_content"
+			android:layout_height="wrap_content" 
+			android:text="@string/NumofAP" />
+		<EditText android:id="@+id/numAP" 
+		  android:layout_width="fill_parent"
+			android:layout_height="wrap_content" 
+			android:layout_weight="1"/>
+	</LinearLayout>
+
+	<LinearLayout android:orientation="vertical"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content">		
+		
+		<Button android:id="@+id/collect" 
+	  	android:text="@string/collect"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content" />
+	</LinearLayout>
+
+</LinearLayout>
+

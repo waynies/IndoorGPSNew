@@ -1,0 +1,819 @@
+/**
+ * 
+ */
+package com.IndoorGPS;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+
+import Jama.Matrix;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.SQLException;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.graphics.Point;
+import android.net.wifi.ScanResult;
+import android.util.Log;
+
+import com.IndoorGPS.LocalizerBasicClass.Orientation;
+
+
+/**
+ * @author tong
+ *
+ */
+public class DBManager {
+	private String MSG_TAG = "IndoorGPS -> DBManager";
+	
+	public static final String KEY_COLUMN1 = "fcolumn";
+    public static final String KEY_COLUMN2 = "scolumn";
+    public static final String KEY_COLUMN3 = "tcolumn";
+
+    public static final String KEY_ROWID = "_id";
+    public static final String KEY_X_COORD = "xcoord";
+    public static final String KEY_Y_COORD = "ycoord";
+    public static final String KEY_MAC_ADDR = "mac";
+    public static final String KEY_AVG_RSS = "rss";
+    public static final String KEY_VARIANCE = "variance";
+    public static final String KEY_SAMPLE_NUM = "sample";
+
+    private static final String TAG = "DBManager";
+    private DatabaseHelper mDbHelper;
+    private SQLiteDatabase mDb;
+    
+    private static final String DATABASE_NAME = "data";
+    
+    /**
+     * Table used when orientation is disabled
+     */
+    public static final String DATABASE_TABLE = "rssreading";
+ 
+    /**
+     * Tables used when orientation is enabled
+     */
+    public static final String DATABASE_TABLE_N = "North";
+    public static final String DATABASE_TABLE_S = "South";
+    public static final String DATABASE_TABLE_E = "East";
+    public static final String DATABASE_TABLE_W = "West";
+    
+    private static final int DATABASE_VERSION = 1;
+
+    private final Context mCtx;
+
+    /**
+     * Database creation sql statements
+     */
+
+    private static final String DATABASE_CREATE = "create table " + DATABASE_TABLE + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    
+    private static final String DATABASE_CREATE_N = "create table " + DATABASE_TABLE_N + " (" + KEY_ROWID + " integer primary key autoincrement, "
+        + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+        	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    private static final String DATABASE_CREATE_S = "create table " + DATABASE_TABLE_S + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    private static final String DATABASE_CREATE_E = "create table " + DATABASE_TABLE_E + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    private static final String DATABASE_CREATE_W = "create table " + DATABASE_TABLE_W + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+
+    
+    /**
+     * Data declaration imported from LocDB 
+     * 
+     * 
+     */
+    
+    private static String building = null;
+    private static String floor = null;
+
+    private static boolean useCluster = true;
+    private static boolean load4OrientationDB = true;
+
+    // Database files
+    private static String macIDListFile = null;
+    private static String excludeMacIDListFile = null;
+
+    private static String fpFile = null;
+    private static String mapInfoFile = null;
+    
+    private static HashMap<Orientation, String> psiAPDataFile = new HashMap<Orientation,String>();
+    private static HashMap<Orientation, String> clusterFile = new HashMap<Orientation, String>();
+    private static HashMap<Orientation, String> clusterAvgFile = new HashMap<Orientation, String>();
+    private static HashMap<Orientation, String> clusterVarFile = new HashMap<Orientation, String>();
+            
+    
+    // Actual Database
+    public static List<String> apMacIDList = new ArrayList<String>();
+    public static List<Integer> validMacIndexList = new ArrayList<Integer>();
+    public static List<String> validMacIDList = new ArrayList<String>();
+
+    public static List<Integer> x00List = new ArrayList<Integer>();
+    public static List<Integer> y00List = new ArrayList<Integer>();
+
+    public static HashMap<Orientation, Matrix> Psi = new HashMap<Orientation, Matrix>();
+    public static HashMap<Orientation, Matrix> clusterAvgRSS = new HashMap<Orientation, Matrix>();
+    public static HashMap<Orientation, Matrix> clusterVarRSS = new HashMap<Orientation, Matrix>();
+
+    public static HashMap<Orientation, List<Integer>> clusterIndexList = new HashMap<Orientation, List<Integer>>();
+    public static HashMap<Orientation, HashMap<Integer, List<Integer>>> clusterHeadList = new HashMap<Orientation, HashMap<Integer, List<Integer>>>(); 
+    
+    public static int numAPs;
+    public static int numRPs;
+
+    public static List<Integer> turningFPSet = new ArrayList<Integer>();
+    public static List<int[]> turningXYBoundarySet = new ArrayList<int[]>();
+    public static List<HashMap<Integer,int[]>> turningFPMembersSet = new ArrayList<HashMap<Integer,int[]>>();
+
+    // Error Msg
+    private static List<String> missingFiles = new ArrayList<String>();    
+    
+    private static class DatabaseHelper extends SQLiteOpenHelper {
+
+        DatabaseHelper(Context context) {
+            super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) throws SQLException{
+        		db.execSQL(DATABASE_CREATE); 
+        		db.execSQL(DATABASE_CREATE_N);
+        		db.execSQL(DATABASE_CREATE_S);
+        		db.execSQL(DATABASE_CREATE_E);
+        		db.execSQL(DATABASE_CREATE_W);
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            Log.w(TAG, "Upgrading database from version " + oldVersion + " to "
+                    + newVersion + ", which will destroy all old data");
+            db.execSQL("DROP TABLE IF EXISTS rssreading");
+            onCreate(db);
+        }
+    }
+    
+    public DBManager(Context ctx) {
+        this.mCtx = ctx;
+    }
+
+    public DBManager open() throws SQLException {
+        mDbHelper = new DatabaseHelper(mCtx);
+        mDb = mDbHelper.getWritableDatabase();
+        return this;
+    }
+
+    public void close(){
+        mDb.close();
+        mDbHelper.close();
+    }
+    
+    public long insertRow(String table, String column1, String column2, String column3, String column4, String column5, String column6) {
+        ContentValues initialValues = new ContentValues();
+        initialValues.put(KEY_X_COORD, column1);
+        initialValues.put(KEY_Y_COORD, column2);
+        initialValues.put(KEY_MAC_ADDR, column3);
+        initialValues.put(KEY_AVG_RSS, column4);
+        initialValues.put(KEY_VARIANCE, column5);
+        initialValues.put(KEY_SAMPLE_NUM, column6);
+        
+        return mDb.insert(table, null, initialValues);
+    } 
+    
+    // TODO: insertRows may not need to be overloaded.
+    public void insertRows(String table, HashMap<String, Double>resultList, int x, int y, int sampleNum, int variance) {
+        
+    	Log.d(MSG_TAG, "insertRows entry. list size : " + resultList.size());
+    	
+		Iterator<String> keyIt = resultList.keySet().iterator();    		
+    	
+		while(keyIt.hasNext())
+    	{
+			String name = (String)keyIt.next();
+			double avgValue = resultList.get(name).doubleValue();
+			
+			ContentValues initialValues = new ContentValues();
+	        initialValues.put(KEY_X_COORD, x);
+	        initialValues.put(KEY_Y_COORD, y);
+	        initialValues.put(KEY_MAC_ADDR, name);
+	        initialValues.put(KEY_AVG_RSS, avgValue);
+	        initialValues.put(KEY_VARIANCE, variance);
+	        initialValues.put(KEY_SAMPLE_NUM, sampleNum);
+	        mDb.insert(table, null, initialValues);
+		}
+		
+		Log.d(MSG_TAG, "insertRows exit");
+    }
+    
+    public void insertRows(String table, HashMap<String, double[]>resultList, int x, int y, int sampleNum) {
+        
+    	Log.d(MSG_TAG, "insertRows entry. list size : " + resultList.size());
+    	
+		Iterator<String> keyIt = resultList.keySet().iterator();    		
+    	
+		while(keyIt.hasNext())
+    	{
+			String name = (String)keyIt.next();
+			double[] avgVarPair = resultList.get(name);
+			
+			ContentValues initialValues = new ContentValues();
+	        initialValues.put(KEY_X_COORD, x);
+	        initialValues.put(KEY_Y_COORD, y);
+	        initialValues.put(KEY_MAC_ADDR, name);
+	        initialValues.put(KEY_AVG_RSS, (int)avgVarPair[0]);
+	        initialValues.put(KEY_VARIANCE, (int)avgVarPair[1]);
+	        initialValues.put(KEY_SAMPLE_NUM, sampleNum);
+	        mDb.insert(table, null, initialValues);
+		}
+		
+		Log.d(MSG_TAG, "insertRows exit");
+    }
+    
+    public boolean deleteRow(long rowId) {
+
+        return mDb.delete(DATABASE_TABLE, KEY_ROWID + "=" + rowId, null) > 0;
+    }   
+    
+    public boolean deleteAll(String table) {
+
+        return mDb.delete(table, null, null) > 0;
+    }
+    
+    public Cursor fetchAllRows(String table) {
+
+        return mDb.query(table, new String[] {KEY_ROWID, KEY_X_COORD,
+        		KEY_Y_COORD, KEY_MAC_ADDR, KEY_AVG_RSS, KEY_VARIANCE, KEY_SAMPLE_NUM}, null, null, null, null, null);
+    }
+
+    public Cursor fetchRow(String table, long rowId) throws SQLException {
+
+        Cursor mCursor =
+
+            mDb.query(true, table, new String[] {KEY_ROWID,
+            		KEY_Y_COORD, KEY_Y_COORD, KEY_MAC_ADDR, KEY_AVG_RSS, KEY_VARIANCE, KEY_SAMPLE_NUM}, KEY_ROWID + "=" + rowId, null,
+                    null, null, null, null);
+        if (mCursor != null) {
+            mCursor.moveToFirst();
+        }
+        return mCursor;
+
+    }
+
+    public boolean updateRow(String table, long rowId, String column1, String column2, String column3, String column4, String column5, String column6) {
+        ContentValues args = new ContentValues();
+        args.put(KEY_X_COORD, column1);
+        args.put(KEY_Y_COORD, column2);
+        args.put(KEY_MAC_ADDR, column3);
+        args.put(KEY_AVG_RSS, column4);
+        args.put(KEY_VARIANCE, column5);
+        args.put(KEY_SAMPLE_NUM, column6);
+        return mDb.update(table, args, KEY_ROWID + "=" + rowId, null) > 0;
+    }
+
+    
+    
+    /**
+     * Public Functions
+     * 
+     */
+/*
+    public static boolean LoadAPMACList(String mybuilding, String myfloor)
+    {
+        missingFiles.clear();
+
+        macIDListFile = String.Format("\\{0}\\MAC_ID_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, mybuilding, myfloor);
+        excludeMacIDListFile = String.Format("\\{0}\\EXCLUDE_MAC_ID_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, mybuilding, myfloor);
+        LoadMACListFromFile();
+       
+        return missingFiles.Count == 0 ? true : false;
+    }
+*/
+    
+    /**
+     * Get MAC address list from DB
+     * @param Table
+     * @return MAC addresses in ArrayList<String>
+     */
+    public List<String> getMacList(String table){
+    	List<String> MacList = new ArrayList<String>();
+    	
+        Cursor mCursor = mDb.query(true, table, new String[] {KEY_MAC_ADDR}, null, null, null, null, null, null);
+        
+        for (int i=0; i<mCursor.getCount();i++){
+        	MacList.add(mCursor.getString(0));
+        }
+        
+    	return MacList;
+    }
+    
+    /**
+     * Get Reference Point List from DB
+     * @param Table
+     * @return Reference points in ArrayList<Point>
+     */
+    public List<Point> getRPList(String table){
+    	List<Point> RPList = new ArrayList<Point>();
+    	
+        Cursor mCursor = mDb.query(true, table, new String[] {KEY_X_COORD, KEY_Y_COORD}, null, null, null, null, null, null);    	
+    	
+        for (int i=0; i<mCursor.getCount();i++){
+        	RPList.add(new Point(mCursor.getInt(0),mCursor.getInt(1)));
+        }
+        
+    	return RPList;
+    }
+    
+    /**
+     * Retrieve the RSS list given the current location
+     * @param table
+     * @param curLocation	current location
+     * @return list containing RSS readings for the given location
+     */
+    public HashMap<String, Double> getRSSList(String table, Point curLocation){
+    	HashMap<String, Double> RSSList = new HashMap<String, Double>();
+    
+    	Cursor mCursor = mDb.query(true, table, new String[] {KEY_MAC_ADDR, KEY_AVG_RSS}, KEY_X_COORD + "= ?" + " AND " + KEY_Y_COORD + "= ?", 
+    			new String[] {Integer.toString(curLocation.x), Integer.toString(curLocation.y)}, null, null, null, null); 
+        
+    	for (int i=0; i<mCursor.getCount();i++){
+        	RSSList.put(mCursor.getString(0), mCursor.getDouble(1));
+        }
+    	
+    	return RSSList;
+    }
+
+/*    
+    public static boolean LoadDatabase(String mybuilding, String myfloor, boolean myusecluster, boolean myload4OrientationDB)
+    {
+        missingFiles.clear();
+        boolean needreload = false;
+
+        if (building != mybuilding || floor != myfloor)
+        {
+            building = mybuilding;
+            floor = myfloor;
+
+            // Set filenames according to building/floor
+            macIDListFile = String.Format("\\{0}\\MAC_ID_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+            excludeMacIDListFile = String.Format("\\{0}\\EXCLUDE_MAC_ID_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, mybuilding, myfloor);
+
+            fpFile = String.Format("\\{0}\\FP_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+            mapInfoFile = String.Format("\\{0}\\MapInfo_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+
+            psiAPDataFile[DB.DBTag_N] = String.Format("\\{0}\\Psi_APFP_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+            clusterFile[DB.DBTag_N] = String.Format("\\{0}\\ClusterIndex_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+            clusterAvgFile[DB.DBTag_N] = String.Format("\\{0}\\ClusterAvg_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+            clusterVarFile[DB.DBTag_N] = String.Format("\\{0}\\ClusterVar_{1}_{2}.txt", ConfigSettings.CSSL_SUBDIR, building, floor);
+
+            for (Orientation tag : DB.DBTag_4O)
+            {
+                psiAPDataFile[tag] = String.Format("\\{0}\\Psi_APFP_{1}_{2}_{3}.txt", ConfigSettings.CSSL_SUBDIR, tag.ToString("G"), building, floor);
+                clusterFile[tag] = String.Format("\\{0}\\ClusterIndex_{1}_{2}_{3}.txt", ConfigSettings.CSSL_SUBDIR, tag.ToString("G"), building, floor);
+                clusterAvgFile[tag] = String.Format("\\{0}\\ClusterAvg_{1}_{2}_{3}.txt", ConfigSettings.CSSL_SUBDIR, tag.ToString("G"), building, floor);
+                clusterVarFile[tag] = String.Format("\\{0}\\ClusterVar_{1}_{2}_{3}.txt", ConfigSettings.CSSL_SUBDIR, tag.ToString("G"), building, floor);
+            }
+
+            LoadMACListFromFile();
+            LoadFPsListFromFile();
+
+            needreload = true;
+        }
+
+        if (needreload || load4OrientationDB != myload4OrientationDB || useCluster != myusecluster)
+        {
+            load4OrientationDB = myload4OrientationDB;
+            useCluster = myusecluster;
+
+            if (load4OrientationDB)
+            {
+                for (Orientation tag : DB.DBTag_4O)
+                {                        
+                    LoadPsiFromFile(tag, apMacIDList.Count, numRPs);
+
+                    if (useCluster)
+                    {
+                        LoadClusterIndexFromFile(tag);
+                        LoadClusterAvgVarFile(tag, apMacIDList.Count, clusterHeadList[tag].Count, true);
+                        LoadClusterAvgVarFile(tag, apMacIDList.Count, clusterHeadList[tag].Count, false);
+                    }
+                }
+            }
+            else
+            {                    
+                LoadPsiFromFile(DB.DBTag_N, apMacIDList.Count, numRPs);
+
+                if (useCluster)
+                {
+                    LoadClusterIndexFromFile(DB.DBTag_N);
+                    LoadClusterAvgVarFile(DB.DBTag_N, apMacIDList.Count, clusterHeadList[DB.DBTag_N].Count, true);
+                    LoadClusterAvgVarFile(DB.DBTag_N, apMacIDList.Count, clusterHeadList[DB.DBTag_N].Count, false);
+                }
+            }
+        }
+
+        UtilitiesFunc.WriteLineInFile(ConfigSettings.LOGFILENAME, String.Format("Load DB: numAPs={0}; numRPs={0}", numAPs, numRPs));
+        return missingFiles.Count == 0 ? true : false;
+    }
+
+    public static boolean LoadMapInfo()
+    {
+        if (UtilitiesFunc.IsValidFilePath(mapInfoFile))
+        {
+            turningFPSet.Clear();
+            
+
+            String line;
+            String[] splitstrings, s1, s2;
+
+            StreamReader sr = new StreamReader(mapInfoFile);
+            while ((line = sr.ReadLine()) != null)
+            {
+                splitstrings = line.Split(':');
+
+                if (splitstrings[0] == "TFP")
+                {
+                    turningFPSet.Add(Int32.Parse(splitstrings[1]));
+                   
+                    HashMap<Integer, int[]> dirMembers = new HashMap<Integer, int[]>();
+                    for (int i = 2; i < splitstrings.Length; i++)
+                    {
+                       
+                        s1 = splitstrings[i].Split('=');
+                        s2 = s1[1].Split(',');
+                        
+                        int dir = Int32.Parse(s1[0]);
+
+                        dirMembers[dir] = new int[s2.Length];
+                        for (int j = 0; j < s2.Length; j++)
+                        {
+                            dirMembers[dir][j] = Int32.Parse(s2[j]);
+                        }
+                    }
+                    turningFPMembersSet.Add(dirMembers);
+                }
+            }
+            sr.Close();
+
+            DefineTurningPtXYBoundary();
+            
+        }
+        else
+        {
+            missingFiles.Add(mapInfoFile);                
+        }
+        return missingFiles.Count == 0 ? true : false;
+    }
+
+    public static String PrintMissingFiles()
+    {
+        return "Missing File(s): " + String.Join(", ", missingFiles.ToArray());
+    }
+
+    public static HashMap<String, List<Integer>> GetTestRSS_Y(Orientation tag, int col)
+    {
+        HashMap<String, List<Integer>> apRSSDict = new HashMap<String, List<Integer>>();
+        for (int i = 0; i < validMacIDList.Count; i++)
+        {
+            String mac = validMacIDList[i];
+            apRSSDict[mac] = new List<Integer>();
+            apRSSDict[mac].Add(System.Convert.ToInt32(Psi[tag].GetElement(i, col)));
+        }
+        return apRSSDict;
+    }
+
+*/
+
+    /**
+     * Private Functions
+     * 
+     */
+    
+
+    /**
+     * Load mac id into a list from file
+     * 
+     */
+    /*
+    private static void LoadMACListFromFile()
+    {
+        if (UtilitiesFunc.IsValidFilePath(macIDListFile))
+        {
+            apMacIDList.clear();
+            validMacIDList.clear();
+            validMacIndexList.clear();
+
+            String line;
+            StreamReader sr = new StreamReader(macIDListFile);
+            while ((line = sr.ReadLine()) != null)
+            {
+                apMacIDList.Add(line.Trim());
+                validMacIDList.Add(line.Trim());
+            }
+            sr.Close();
+
+
+            for (int i = 0; i < apMacIDList.Count; i++)
+            {
+                validMacIndexList.Add(i);
+            }
+
+            if (UtilitiesFunc.IsValidFilePath(excludeMacIDListFile))
+            {                    
+                sr = new StreamReader(excludeMacIDListFile);
+                UtilitiesFunc.WriteLineInFile(ConfigSettings.LOGFILENAME, ">>> Remove MAC");
+                while ((line = sr.ReadLine()) != null)
+                {
+                    int apindex = apMacIDList.FindIndex(delegate(String ap) { return ap == line.Trim(); });
+                    if (apindex >= 0)
+                    {
+                        UtilitiesFunc.WriteLineInFile(ConfigSettings.LOGFILENAME, " >>" + apindex.ToString());
+                        validMacIndexList.Remove(apindex);
+                    }
+                }
+                sr.Close();
+
+                validMacIDList.clear();
+                for (int api : validMacIndexList)
+                {
+                    validMacIDList.Add(apMacIDList[api]);
+                }
+            }
+
+            numAPs = validMacIDList.Count;
+        }
+        else
+        {
+            missingFiles.Add(macIDListFile);
+        }
+
+    }
+
+*/
+    
+    /**
+     * Load ordered refpts coordinate from file
+     * 
+     */
+/*
+    private static void LoadFPsListFromFile()
+    {
+        if (UtilitiesFunc.IsValidFilePath(fpFile))
+        {
+            x00List.Clear();
+            y00List.Clear();
+
+            String line;
+            String[] splitstrings;
+            int x, y;
+
+            StreamReader sr = new StreamReader(fpFile);
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                splitstrings = line.Split(',');
+                x = Int32.Parse(splitstrings[0]);
+                y = Int32.Parse(splitstrings[1]);
+
+                x00List.Add(x);
+                y00List.Add(y);                   
+            }
+            sr.Close();
+
+            numRPs = x00List.Count;                                
+        }
+        else
+        {
+            missingFiles.Add(fpFile);
+        }
+    }        
+*/
+
+    /**
+     * Load the psi matrix from file. Each line is a row; each column entry is separated by a space
+     * @param psifilename file name
+     * 
+     */    
+/*
+    private static void LoadPsiFromFile(Orientation tag, int rownum, int colnum)
+    {
+        String psifilename = psiAPDataFile[tag];
+        Matrix tempPsi = new Matrix(rownum, colnum);
+
+        if (UtilitiesFunc.IsValidFilePath(psifilename))
+        {
+            StreamReader sr = new StreamReader(psifilename);
+            String line;
+            String[] splitstrings;
+            
+            int i = 0;
+            int j = 0;
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                splitstrings = line.Split(' ');
+                for (String s : splitstrings)
+                {
+                    if (s.Trim() != "")
+                    {
+                        tempPsi.SetElement(i, j, Double.Parse(s.Trim()));
+                        j++;
+                    }
+                }
+
+                i++;
+                j = 0;
+            }
+            sr.Close();
+
+
+            // IF THERE EXISTS APS TO BE EXCLUDED
+            if (numAPs < apMacIDList.Count)
+            {
+
+                Psi[tag] = tempPsi.GetMatrix(validMacIndexList.ToArray(), 0, colnum - 1);
+            }
+            else
+            {
+                Psi[tag] = tempPsi.Copy();
+            }
+
+            UtilitiesFunc.WriteLineInFile(ConfigSettings.LOGFILENAME, String.Format(">>> Load PSI {0} - {1}x{2}", tag, Psi[tag].RowDimension, Psi[tag].ColumnDimension));
+        }
+        else
+        {
+            missingFiles.Add(psifilename);
+        }
+    }
+*/
+
+    /**
+     * Load the cluster head index into a list from file: North
+     * 
+     */
+/*
+    private static void LoadClusterIndexFromFile(Orientation tag)
+    {
+        String file = clusterFile[tag];
+
+        if (UtilitiesFunc.IsValidFilePath(file))
+        {
+            if (clusterHeadList.ContainsKey(tag))
+            {
+                clusterIndexList[tag].Clear();
+                clusterHeadList[tag].Clear();
+            }
+            else
+            {
+                clusterIndexList[tag] = new List<Integer>();
+                clusterHeadList[tag] = new HashMap<Integer, List<Integer>>();
+            }
+
+            String line;
+            
+            StreamReader sr = new StreamReader(file);
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                clusterIndexList[tag].Add(Int32.Parse(line.Trim()));                    
+            }
+            sr.Close();
+
+            var cheadlist = clusterIndexList[tag].Distinct().ToList();
+            for (int chead : cheadlist)
+            {
+                clusterHeadList[tag][chead] = new List<Integer>();
+
+                for (int i = 0; i < clusterIndexList[tag].Count; i++)
+                {
+                    if (clusterIndexList[tag][i] == chead)
+                    {
+                        clusterHeadList[tag][chead].Add(i);
+                    }
+                }
+            }
+        }
+        else
+        {
+            missingFiles.Add(file);
+        }
+    }
+*/
+    /// <summary>
+    /// Load the psi matrix from file. Each line is a row; each column entry is separted by a space
+    /// </summary>
+    /// <param name="psifilename"></param>
+    /// <returns></returns>
+    /**
+     * Load the Cluster Average Var from File
+     * @param tag
+     * @param rownum
+     * @param colnum
+     * @param isAvg
+     * 
+     */
+/*
+    private static void LoadClusterAvgVarFile(Orientation tag, int rownum, int colnum, boolean isAvg)
+    {
+        String filename;
+        Matrix tempMatrix = new Matrix(rownum, colnum);
+
+        if (isAvg)
+        {
+            filename = clusterAvgFile[tag];
+        }
+        else
+        {
+            filename = clusterVarFile[tag];
+        }
+        
+        if (UtilitiesFunc.IsValidFilePath(filename))
+        {
+            StreamReader sr = new StreamReader(filename);
+            String line;
+            String[] splitstrings;
+
+            int i = 0;
+            int j = 0;
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                splitstrings = line.Split(' ');
+                for (String s : splitstrings)
+                {
+                    if (s.Trim() != "")
+                    {
+                        tempMatrix.SetElement(i, j, Double.Parse(s.Trim()));
+                        j++;
+                    }
+                }
+
+                i++;
+                j = 0;
+            }
+            sr.Close();
+
+            // IF THERE EXISTS APS TO BE EXCLUDED
+            if (numAPs < apMacIDList.Count)
+            {
+                if (isAvg)
+                {
+                    clusterAvgRSS[tag] = tempMatrix.GetMatrix(validMacIndexList.ToArray(), 0, colnum - 1);
+                }
+                else
+                {
+                    clusterVarRSS[tag] = tempMatrix.GetMatrix(validMacIndexList.ToArray(), 0, colnum - 1);
+                }                    
+            }
+            else
+            {
+                if (isAvg)
+                {
+                    clusterAvgRSS[tag] = tempMatrix.Copy();
+                }
+                else
+                {
+                    clusterVarRSS[tag] = tempMatrix.Copy();
+                }
+            }
+
+            if (isAvg)
+            {
+                UtilitiesFunc.WriteLineInFile(ConfigSettings.LOGFILENAME, String.Format(">>> Load clusterAvgRSS {0} - {1}x{2}", tag, clusterAvgRSS[tag].RowDimension, clusterAvgRSS[tag].ColumnDimension));
+            }
+            else
+            {
+                UtilitiesFunc.WriteLineInFile(ConfigSettings.LOGFILENAME, String.Format(">>> Load clusterVarRSS {0} - {1}x{2}", tag, clusterVarRSS[tag].RowDimension, clusterVarRSS[tag].ColumnDimension));
+            }
+        }
+        else
+        {
+            missingFiles.Add(filename);
+        }
+    }
+*/
+
+/*    
+    private static void DefineTurningPtXYBoundary()
+    {
+        turningXYBoundarySet.clear();
+
+        for (int turningFP : turningFPSet)
+        {
+            int[] minmaxXY = new int[4];
+            minmaxXY[0] = (int)Math.Round(x00List[turningFP] - ConfigSettings.TURNING_TOL_M * ConfigSettings.METER_2_PIXEL_X);
+            minmaxXY[1] = (int)Math.Round(x00List[turningFP] + ConfigSettings.TURNING_TOL_M * ConfigSettings.METER_2_PIXEL_X);
+            minmaxXY[2] = (int)Math.Round(y00List[turningFP] - ConfigSettings.TURNING_TOL_M * ConfigSettings.METER_2_PIXEL_Y);
+            minmaxXY[3] = (int)Math.Round(y00List[turningFP] + ConfigSettings.TURNING_TOL_M * ConfigSettings.METER_2_PIXEL_Y);
+            turningXYBoundarySet.Add(minmaxXY);
+        }
+    }
+*/  
+
+}

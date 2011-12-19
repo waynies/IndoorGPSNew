@@ -1,0 +1,762 @@
+/**
+ * 
+ */
+package com.IndoorGPS;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+
+import Jama.Matrix;
+import android.app.ProgressDialog;
+import android.content.ContentValues;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.SQLException;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.graphics.Point;
+import android.os.Environment;
+import android.preference.PreferenceManager;
+import android.util.Log;
+
+import com.IndoorGPS.LocalizerBasicClass.Orientation;
+
+public class DBManager {
+	private String MSG_TAG = "IndoorGPS -> DBManager";
+	
+	public static final String KEY_COLUMN1 = "fcolumn";
+    public static final String KEY_COLUMN2 = "scolumn";
+    public static final String KEY_COLUMN3 = "tcolumn";
+
+    public static final String KEY_ROWID = "_id";
+    public static final String KEY_X_COORD = "xcoord";
+    public static final String KEY_Y_COORD = "ycoord";
+    public static final String KEY_MAC_ADDR = "mac";
+    public static final String KEY_AVG_RSS = "rss";
+    public static final String KEY_VARIANCE = "variance";
+    public static final String KEY_SAMPLE_NUM = "sample";
+
+    private static final String TAG = "DBManager";
+    private DatabaseHelper mDbHelper;
+    private SQLiteDatabase mDb;
+    
+    private static final String DATABASE_NAME = "data";
+    
+    /**
+     * Table used when orientation is disabled
+     */
+    public static final String DATABASE_TABLE = "rssreading";
+ 
+    /**
+     * Tables used when orientation is enabled
+     */
+    public static final String DATABASE_TABLE_N = "North";
+    public static final String DATABASE_TABLE_S = "South";
+    public static final String DATABASE_TABLE_E = "East";
+    public static final String DATABASE_TABLE_W = "West";
+    
+    private static final int DATABASE_VERSION = 1;
+
+    private final Context mCtx;
+
+    /**
+     * Database creation sql statements
+     */
+
+    private static final String DATABASE_CREATE = "create table " + DATABASE_TABLE + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    
+    private static final String DATABASE_CREATE_N = "create table " + DATABASE_TABLE_N + " (" + KEY_ROWID + " integer primary key autoincrement, "
+        + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+        	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    private static final String DATABASE_CREATE_S = "create table " + DATABASE_TABLE_S + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    private static final String DATABASE_CREATE_E = "create table " + DATABASE_TABLE_E + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+    private static final String DATABASE_CREATE_W = "create table " + DATABASE_TABLE_W + " (" + KEY_ROWID + " integer primary key autoincrement, "
+    + KEY_X_COORD + " text not null, " + KEY_Y_COORD + " text not null, " + KEY_MAC_ADDR + " text not null, " +
+    	KEY_AVG_RSS + " text not null, " + KEY_VARIANCE + " text, " + KEY_SAMPLE_NUM + " integer);";
+
+    
+    /**
+     * Data declaration imported from LocDB 
+     * 
+     * 
+     */
+    
+    private static String building = null;
+    private static String floor = null;
+
+    private static boolean useCluster = true;
+    private static boolean load4OrientationDB = true;
+
+    // Database files
+    private static String macIDListFile = null;
+    private static String excludeMacIDListFile = null;
+
+    private static String fpFile = null;
+    private static String mapInfoFile = null;
+    
+    private static HashMap<Orientation, String> psiAPDataFile = new HashMap<Orientation,String>();
+    private static HashMap<Orientation, String> clusterFile = new HashMap<Orientation, String>();
+    private static HashMap<Orientation, String> clusterAvgFile = new HashMap<Orientation, String>();
+    private static HashMap<Orientation, String> clusterVarFile = new HashMap<Orientation, String>();
+            
+    
+    // Actual Database
+    public static List<String> apMacIDList = new ArrayList<String>();
+    public static List<Integer> validMacIndexList = new ArrayList<Integer>();
+    public static List<String> validMacIDList = new ArrayList<String>();
+
+    public static List<Integer> x00List = new ArrayList<Integer>();
+    public static List<Integer> y00List = new ArrayList<Integer>();
+
+    public static HashMap<Orientation, Matrix> Psi = new HashMap<Orientation, Matrix>();
+    public static HashMap<Orientation, Matrix> clusterAvgRSS = new HashMap<Orientation, Matrix>();
+    public static HashMap<Orientation, Matrix> clusterVarRSS = new HashMap<Orientation, Matrix>();
+
+    public static HashMap<Orientation, List<Integer>> clusterIndexList = new HashMap<Orientation, List<Integer>>();
+    public static HashMap<Orientation, HashMap<Integer, List<Integer>>> clusterHeadList = new HashMap<Orientation, HashMap<Integer, List<Integer>>>(); 
+    
+    public static int numAPs;
+    public static int numRPs;
+
+    public static List<Integer> turningFPSet = new ArrayList<Integer>();
+    public static List<int[]> turningXYBoundarySet = new ArrayList<int[]>();
+    public static List<HashMap<Integer,int[]>> turningFPMembersSet = new ArrayList<HashMap<Integer,int[]>>();
+
+    // Error Msg
+    private static List<String> missingFiles = new ArrayList<String>();    
+    
+    // settings for generating text files
+    
+    private static String dirLocation = "txtfiles";                 // directory name
+    private static String RPFile = "RP.txt";                  			// reference points (finger prints) file
+    private static String RssXYFile = "RssXY.txt";                  			// Rss, X and Y coordinates file
+    private static String AvgRSSFile = "AvgRss.txt";                  		// Average RSS file
+    private static String VarRSSFile = "VarRss.txt";                  		// Variance RSS file
+    private static String MacIDFile = "MAC_ID.txt";                  			// Avalable MAC ID file
+
+    
+    private static class DatabaseHelper extends SQLiteOpenHelper {
+
+        DatabaseHelper(Context context) {
+            super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) throws SQLException{
+        		db.execSQL(DATABASE_CREATE); 
+        		db.execSQL(DATABASE_CREATE_N);
+        		db.execSQL(DATABASE_CREATE_S);
+        		db.execSQL(DATABASE_CREATE_E);
+        		db.execSQL(DATABASE_CREATE_W);
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            Log.w(TAG, "Upgrading database from version " + oldVersion + " to "
+                    + newVersion + ", which will destroy all old data");
+            db.execSQL("DROP TABLE IF EXISTS rssreading");
+            onCreate(db);
+        }
+    }
+    
+    public DBManager(Context ctx) {
+        this.mCtx = ctx;
+    }
+
+    public DBManager open() throws SQLException {
+        mDbHelper = new DatabaseHelper(mCtx);
+        mDb = mDbHelper.getWritableDatabase();
+        return this;
+    }
+
+    public void close(){
+        mDb.close();
+        mDbHelper.close();
+    }
+    
+    public long insertRow(String table, int x, int y, String mac, double avg, double var, int sam) {
+        ContentValues initialValues = new ContentValues();
+        initialValues.put(KEY_X_COORD, x);
+        initialValues.put(KEY_Y_COORD, y);
+        initialValues.put(KEY_MAC_ADDR, mac);
+        initialValues.put(KEY_AVG_RSS, avg);
+        initialValues.put(KEY_VARIANCE, var);
+        initialValues.put(KEY_SAMPLE_NUM, sam);
+        
+        return mDb.insert(table, null, initialValues);
+    } 
+    
+    public long insertRow(String table, String x, String y, String mac, String avg, String var, String sam) {
+        ContentValues initialValues = new ContentValues();
+        initialValues.put(KEY_X_COORD, x);
+        initialValues.put(KEY_Y_COORD, y);
+        initialValues.put(KEY_MAC_ADDR, mac);
+        initialValues.put(KEY_AVG_RSS, avg);
+        initialValues.put(KEY_VARIANCE, var);
+        initialValues.put(KEY_SAMPLE_NUM, sam);
+		
+		Log.d(MSG_TAG, "insertRows exit");
+        return mDb.insert(table, null, initialValues);
+    } 
+
+    //TODO: insertRows may not need to be overloaded.
+    public void insertRows(String table, HashMap<String, Double>resultList, int x, int y, int sampleNum, int variance) {
+
+    	Log.d(MSG_TAG, "insertRows entry. list size : " + resultList.size());
+
+    	Iterator<String> keyIt = resultList.keySet().iterator();    		
+
+    	while(keyIt.hasNext())
+    	{
+    		String name = (String)keyIt.next();
+    		double avgValue = resultList.get(name).doubleValue();
+
+    		ContentValues initialValues = new ContentValues();
+    		initialValues.put(KEY_X_COORD, x);
+    		initialValues.put(KEY_Y_COORD, y);
+    		initialValues.put(KEY_MAC_ADDR, name);
+    		initialValues.put(KEY_AVG_RSS, avgValue);
+    		initialValues.put(KEY_VARIANCE, variance);
+    		initialValues.put(KEY_SAMPLE_NUM, sampleNum);
+    		mDb.insert(table, null, initialValues);
+    	}
+
+    	Log.d(MSG_TAG, "insertRows exit");
+    }
+    
+    public void insertRows(String table, HashMap<String, double[]>resultList, int x, int y, int sampleNum) {
+        
+    	Log.d(MSG_TAG, "insertRows entry. list size : " + resultList.size());
+    	
+		Iterator<String> keyIt = resultList.keySet().iterator();    		
+    	
+		while(keyIt.hasNext())
+    	{
+			String name = keyIt.next();
+			double[] avgVarPair = resultList.get(name);
+			
+			ContentValues initialValues = new ContentValues();
+	        initialValues.put(KEY_X_COORD, x);
+	        initialValues.put(KEY_Y_COORD, y);
+	        initialValues.put(KEY_MAC_ADDR, name);
+	        initialValues.put(KEY_AVG_RSS, (int)avgVarPair[0]);
+	        initialValues.put(KEY_VARIANCE, (int)avgVarPair[1]);
+	        initialValues.put(KEY_SAMPLE_NUM, sampleNum);
+	        mDb.insert(table, null, initialValues);
+		}
+		
+		Log.d(MSG_TAG, "insertRows exit");
+    }
+    
+    public boolean deleteRow(long rowId) {
+
+        return mDb.delete(DATABASE_TABLE, KEY_ROWID + "=" + rowId, null) > 0;
+    }   
+    
+    public boolean deleteAll(String table) {
+
+        return mDb.delete(table, null, null) > 0;
+    }
+    
+    public Cursor fetchAllRows(String table) {
+
+        return mDb.query(table, new String[] {KEY_ROWID, KEY_X_COORD,
+        		KEY_Y_COORD, KEY_MAC_ADDR, KEY_AVG_RSS, KEY_VARIANCE, KEY_SAMPLE_NUM}, null, null, null, null, null);
+    }
+
+    public Cursor fetchRow(String table, long rowId) throws SQLException {
+
+        Cursor mCursor =
+
+            mDb.query(true, table, new String[] {KEY_ROWID,
+            		KEY_Y_COORD, KEY_Y_COORD, KEY_MAC_ADDR, KEY_AVG_RSS, KEY_VARIANCE, KEY_SAMPLE_NUM}, KEY_ROWID + "=" + rowId, null,
+                    null, null, null, null);
+        if (mCursor != null) {
+            mCursor.moveToFirst();
+        }
+        return mCursor;
+
+    }
+
+    public boolean updateRow(String table, long rowId, String column1, String column2, String column3, String column4, String column5, String column6) {
+        ContentValues args = new ContentValues();
+        args.put(KEY_X_COORD, column1);
+        args.put(KEY_Y_COORD, column2);
+        args.put(KEY_MAC_ADDR, column3);
+        args.put(KEY_AVG_RSS, column4);
+        args.put(KEY_VARIANCE, column5);
+        args.put(KEY_SAMPLE_NUM, column6);
+        return mDb.update(table, args, KEY_ROWID + "=" + rowId, null) > 0;
+    }
+
+    
+    
+    /**
+     * Public Functions
+     * 
+     */
+
+    /**
+     * Get MAC address list from DB
+     * @param Table
+     * @return MAC addresses in ArrayList<String>
+     */
+    public List<String> getMacList(String table){
+    	List<String> MacList = new ArrayList<String>();
+    	
+        Cursor mCursor = mDb.query(true, table, new String[] {KEY_MAC_ADDR}, null, null, null, null, null, null);
+        mCursor.moveToFirst();
+        do{
+        	MacList.add(mCursor.getString(mCursor.getColumnIndexOrThrow(KEY_MAC_ADDR)));
+        }while(mCursor.moveToNext());
+        
+    	return MacList;
+    }
+    /**
+     * Get MAC address list from 4 DB's
+     * @return MAC addresses in ArrayList<String>
+     */
+    public List<String> getMacList(){
+    	List<String> MacList = new ArrayList<String>();
+    	
+        Cursor mCursor = mDb.query(true, DATABASE_TABLE_N + "," + DATABASE_TABLE_S + "," + DATABASE_TABLE_W + "," + DATABASE_TABLE_E, new String[] {KEY_MAC_ADDR}, null, null, null, null, null, null);
+        mCursor.moveToFirst();
+        do{
+        	MacList.add(mCursor.getString(mCursor.getColumnIndexOrThrow(KEY_MAC_ADDR)));
+        }while(mCursor.moveToNext());
+        mCursor.close();
+    	return MacList;
+    }    
+    /**
+     * Get Reference Point List from DB
+     * @param Table
+     * @return Reference points in ArrayList<Point>
+     */
+    public List<Point> getRPList(String table){
+    	List<Point> RPList = new ArrayList<Point>();
+    	
+        Cursor mCursor = mDb.query(true, table, new String[] {KEY_X_COORD, KEY_Y_COORD}, null, null, null, null, null, null);    	
+    	
+        mCursor.moveToFirst();
+        do{
+        	RPList.add(new Point(mCursor.getInt(mCursor.getColumnIndex(KEY_X_COORD)),mCursor.getInt(mCursor.getColumnIndex(KEY_Y_COORD))));
+        }while(mCursor.moveToNext());
+        
+        mCursor.close();
+    	return RPList;
+    }
+    
+    /**
+     * Get Reference Point List from 4 DB's
+     * @return Reference points in ArrayList<Point>
+     */
+    public List<Point> getRPList(){
+    	List<Point> RPList = new ArrayList<Point>();
+    	
+        Cursor mCursor = mDb.query(true, DATABASE_TABLE_N + "," + DATABASE_TABLE_S + "," + DATABASE_TABLE_W + "," + DATABASE_TABLE_E, new String[] {KEY_X_COORD, KEY_Y_COORD}, null, null, null, null, null, null);    	
+    	
+        mCursor.moveToFirst();
+        do{
+        	RPList.add(new Point(mCursor.getInt(mCursor.getColumnIndex(KEY_X_COORD)),mCursor.getInt(mCursor.getColumnIndex(KEY_Y_COORD))));
+        }while(mCursor.moveToNext());
+        
+        mCursor.close();
+    	return RPList;
+    }
+    /**
+     * Retrieve the RSS list given the current location
+     * @param table
+     * @param curLocation	current location
+     * @return list containing RSS readings for the given location
+     */
+    public HashMap<String, Double> getRSSList(String table, Point curLocation){
+    	HashMap<String, Double> RSSList = new HashMap<String, Double>();
+    
+    	Cursor mCursor = mDb.query(true, table, new String[] {KEY_MAC_ADDR, KEY_AVG_RSS}, KEY_X_COORD + "= ?" + " AND " + KEY_Y_COORD + "= ?", 
+    			new String[] {Integer.toString(curLocation.x), Integer.toString(curLocation.y)}, null, null, null, null); 
+
+        mCursor.moveToFirst();
+        do{
+        	RSSList.put(mCursor.getString(mCursor.getColumnIndex(KEY_MAC_ADDR)), mCursor.getDouble(mCursor.getColumnIndex(KEY_AVG_RSS)));
+        }while(mCursor.moveToNext());
+    	
+        mCursor.close();
+    	return RSSList;
+    }
+    
+    /**
+     * Dump data into txt files
+     * 
+     */
+    public void dumpAll(){
+
+    	final ProgressDialog dialog = ProgressDialog.show(mCtx, "dumping", "dumping in progress", true);
+    	//ProgressDialog dialog = new ProgressDialog(mCtx);
+    	//dialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+  	
+    	new Thread(new Runnable(){
+        	boolean orientation = false;
+    		
+        	// get shared preference, check if orientation is enabled
+        	private SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(mCtx);
+
+        	
+    		public void run(){
+    	    	
+            	if (sharedPrefs.getBoolean("4oTraining", false)){
+            		orientation = true;
+            	}
+            	
+    	    	// 1. generate reference points (finger prints) file
+    	    	generateRPFile(dirLocation, "RP", orientation);
+    	    	
+    	    	// 2. generate rss, x, y, orientation file for each reference point
+    	    	generateRSSXYFile(dirLocation, "RSS", orientation);
+    	    	
+    	    	// 3. generate average rss file
+    	    	generateAvgRssFile(dirLocation, "AvgRss", orientation);
+    	    	
+    	    	// 4. generate variance rss file
+    	    	generateVarRssFile(dirLocation, "VarRss", orientation);
+    	    	
+    	    	// 5. generate MAC ID List File
+    	    	generateMACFile(dirLocation, "MAC_ID", orientation);
+    		
+    	    	dialog.dismiss();
+    		}
+    		}).start();
+    	  	
+    	
+    }
+    
+    //*********************************************************
+    //		methods for creating text files
+    //
+    //
+    //*********************************************************
+
+    /**
+     * Generate Reference Points File
+     */
+    private void generateRPFile(String dirname, String filename, boolean orientation){
+    	List<Point> RPList;
+    	if(!orientation){
+    		RPList = getRPList(DATABASE_TABLE);
+    		filename = filename + ".txt";
+    	}else{
+    		RPList = getRPList();
+    		filename = filename + "_4.txt";
+    	}
+    	
+    	Iterator i = RPList.iterator();
+    	Point point;
+    	while (i.hasNext()){
+    		point = (Point)i.next();
+    		writeToFile(dirname,filename, point.x + "," + point.y);
+    	}
+    }
+
+    /**
+     * Generate RSS, X, Y File for each reference point
+     */
+    private void generateRSSXYFile(String dirname, String filename, boolean orientation){
+    	if (!orientation){
+        	List<String> MacList = getMacList(DATABASE_TABLE);
+        	List<Point> RPList = getRPList(DATABASE_TABLE);
+        	String mac = null;
+        	Point rp = null;
+        	int count = getSampleCount(DATABASE_TABLE);
+        	Iterator i = RPList.iterator();
+
+        	while (i.hasNext()){
+        		rp = (Point)i.next();
+        		for (int k=0; k<=count; k++){
+        			
+        			Iterator j = MacList.iterator();
+        			StringBuilder st = new StringBuilder();
+        			
+            		while(j.hasNext()){
+            			mac = (String)j.next();
+            			st.append(new Integer(new Double(getValue(DATABASE_TABLE, mac, rp,Integer.toString(k), KEY_AVG_RSS)).intValue()).toString() + " ");
+            			Log.d("raw", new Integer(new Double(getValue(DATABASE_TABLE, mac, rp,Integer.toString(k), KEY_AVG_RSS)).intValue()).toString() + " ");
+            		}
+            		Log.d("raw", st.toString());
+            		Log.d("raw", "count k = " + k);
+            		writeToFile(dirname,filename+"_"+Integer.toString(rp.x)+"_"+Integer.toString(rp.y)+".txt", st.toString());
+        		}
+        	}   
+    	}else{
+    		List<String> oriList = new ArrayList<String>();
+    		oriList.add(DATABASE_TABLE_E);
+    		oriList.add(DATABASE_TABLE_W);
+    		oriList.add(DATABASE_TABLE_S);
+    		oriList.add(DATABASE_TABLE_N);
+    		Iterator iter = oriList.iterator();
+    		while(iter.hasNext()){
+    			String ori = (String)iter.next();
+    			
+	        	List<String> MacList = getMacList(ori);
+	        	List<Point> RPList = getRPList(ori);
+	        	String mac = null;
+	        	Point rp = null;
+	        	int count = getSampleCount(ori);
+	        	Iterator i = RPList.iterator();
+	        	  	
+	        	while (i.hasNext()){
+	        		rp = (Point)i.next();
+	        		for (int k=0; k<=count; k++){
+	        			Iterator j = MacList.iterator();
+	        			StringBuilder st = new StringBuilder();
+	            		while(j.hasNext()){
+	            			mac = (String)j.next();
+	            			st.append(new Integer(new Double(getValue(ori, mac, rp,Integer.toString(k), KEY_AVG_RSS)).intValue()).toString() + " ");
+	            		}
+	            		writeToFile(dirname,filename+"_"+Integer.toString(rp.x)+"_"+Integer.toString(rp.y)+"_"+ori+".txt", st.toString());
+	        		}
+	        	}   
+    		}
+    	}
+	
+    }
+    
+    /**
+     * Generate Average RSS File
+     */
+    private void generateAvgRssFile(String dirname, String filename, boolean orientation){
+    	if (!orientation){
+    		List<String> MacList = getMacList(DATABASE_TABLE);
+        	List<Point> RPList = getRPList(DATABASE_TABLE);
+        	String mac = null;
+        	Point rp = null;
+        	
+        	Iterator i = MacList.iterator();
+        	
+        	
+        	//StringBuilder st = new StringBuilder();
+        	//StringBuffer st1 = new StringBuffer();
+        	//String st = "";
+        	
+        	while (i.hasNext()){
+        		mac = (String)i.next();		
+        		Iterator j = RPList.iterator();
+        		StringBuilder st = new StringBuilder();
+        		while(j.hasNext()){
+        			rp = (Point)j.next();
+        			
+        			st.append(new Integer(new Double(getValue(DATABASE_TABLE, mac, rp, "-1", KEY_AVG_RSS)).intValue()).toString() + " ");
+        			//Log.d("test2",mac + ","+ rp + "," + st);
+        			//st = getValue(DATABASE_TABLE, mac, rp, KEY_AVG_RSS) + " ";
+        		}
+        		writeToFile(dirname,filename+".txt", st.toString());
+        		
+        		//Log.d("dbmanager", mac + "," + rp + ":" + st);
+        		
+        	}
+    	}else{
+    		List<String> oriList = new ArrayList<String>();
+    		oriList.add(DATABASE_TABLE_E);
+    		oriList.add(DATABASE_TABLE_W);
+    		oriList.add(DATABASE_TABLE_S);
+    		oriList.add(DATABASE_TABLE_N);
+    		Iterator iter = oriList.iterator();
+    		while(iter.hasNext()){
+    			String ori = (String)iter.next();
+    			
+        		List<String> MacList = getMacList(ori);
+            	List<Point> RPList = getRPList(ori);
+            	String mac = null;
+            	Point rp = null;
+            	
+            	Iterator i = MacList.iterator();
+          	
+            	while (i.hasNext()){
+            		mac = (String)i.next();
+            		Iterator j = RPList.iterator();
+            		StringBuilder st = new StringBuilder();
+            		while(j.hasNext()){
+            			rp = (Point)j.next();
+            			st.append(new Integer(new Double(getValue(ori, mac, rp, "-1", KEY_AVG_RSS)).intValue()).toString() + " ");
+            		}
+            		writeToFile(dirname,filename+"_"+ori+".txt", st.toString());
+            	}
+    		}
+    	}
+    	
+    }   
+    
+    /**
+     * Generate Variance RSS File
+     */
+    private void generateVarRssFile(String dirname, String filename, boolean orientation){
+    	if (!orientation){
+    		List<String> MacList = getMacList(DATABASE_TABLE);
+        	List<Point> RPList = getRPList(DATABASE_TABLE);
+        	String mac = null;
+        	Point rp = null;
+        	
+        	Iterator i = MacList.iterator();
+        	
+        	while (i.hasNext()){
+        		mac = (String)i.next();
+        		Iterator j = RPList.iterator();
+        		StringBuilder st = new StringBuilder();
+        		while(j.hasNext()){
+        			rp = (Point)j.next();
+        			st.append(new Integer(new Double(getValue(DATABASE_TABLE, mac, rp, "-1", KEY_VARIANCE)).intValue()).toString() + " ");
+        			//Log.e("variance", "var value is : " + getValue(DATABASE_TABLE, mac, rp, "-1", KEY_VARIANCE));
+        		}
+        		writeToFile(dirname,filename+".txt", st.toString());
+        	}
+    	}else{
+    		List<String> oriList = new ArrayList<String>();
+    		oriList.add(DATABASE_TABLE_E);
+    		oriList.add(DATABASE_TABLE_W);
+    		oriList.add(DATABASE_TABLE_S);
+    		oriList.add(DATABASE_TABLE_N);
+    		Iterator iter = oriList.iterator();
+    		while(iter.hasNext()){
+    			String ori = (String)iter.next();
+    			
+    			List<String> MacList = getMacList(ori);
+            	List<Point> RPList = getRPList(ori);
+            	String mac = null;
+            	Point rp = null;
+            	
+            	Iterator i = MacList.iterator();
+            	
+            	while (i.hasNext()){
+            		mac = (String)i.next();
+            		Iterator j = RPList.iterator();
+                	StringBuilder st = new StringBuilder();
+            		while(j.hasNext()){
+            			rp = (Point)j.next();
+            			st.append(new Integer(new Double(getValue(ori, mac, rp, "-1", KEY_VARIANCE)).intValue()).toString() + " ");
+            		}
+            		writeToFile(dirname,filename+"_"+ori+".txt", st.toString());
+            	}
+    		}		
+    	}
+    	
+    }
+    /**
+     * Generate MAC ID List File
+     */
+    private void generateMACFile(String dirname, String filename, boolean orientation){
+    	List<String> MacList;
+    	if (!orientation){
+    		MacList = getMacList(DATABASE_TABLE);
+    		filename = filename + ".txt";
+    	}else{
+    		MacList = getMacList();
+    		filename = filename + "_4.txt";
+    	}
+    	Iterator i = MacList.iterator();
+    	while (i.hasNext()){
+    		writeToFile(dirname,filename,(String)i.next());
+    	}
+    }
+    
+    
+    //*********************************************************
+    //		methods for creating text files
+    //
+    //
+    //*********************************************************
+    /**
+     * helper method for writing to file
+     * 
+     */
+    private void writeToFile(String dirname, String filename, String text){
+    	try {
+    	    File root = Environment.getExternalStorageDirectory();
+    	    if (root.canWrite()){
+    	        File dir = new File(root, dirname);
+    	        if (!dir.exists()){
+    	        	dir.mkdirs();
+    	        }
+    	        File txtfile = new File(root + "/" + dirname, filename);
+    	        FileWriter txtwriter = new FileWriter(txtfile,true);
+    	        BufferedWriter out = new BufferedWriter(txtwriter);
+    	        out.write(text);
+    	        out.newLine();
+    	        out.close();
+    	    }
+    	} catch (IOException e) {
+    	    Log.e(TAG, "Could not write file " + e.getMessage());
+    	}
+    	
+    }
+    
+    /**
+     * return the value given a coordinate and mac address
+     * @param table
+     * @param macID
+     * @param point
+     * @param resultCol
+     * @return the RSS value or Var value, -110 if query returns empty set
+     */
+    private String getValue(String table, String macID, Point point, String resultCol){
+        Cursor mCursor = mDb.query(true, table, new String[] {KEY_AVG_RSS}, KEY_MAC_ADDR + "=" + "? AND " + KEY_X_COORD + "=" + "? AND " + KEY_Y_COORD + "=" + "?", new String[]{macID, Integer.toString(point.x), Integer.toString(point.y)}, null, null, null, null);      
+        if (mCursor.getCount() > 0){
+        	mCursor.moveToFirst();
+        	String result = mCursor.getString(mCursor.getColumnIndex(KEY_AVG_RSS));
+        	mCursor.close();
+        	return result;
+        } else{
+        	mCursor.close();
+        	return "-110";
+        }
+    }
+
+    /**
+     * return the value given a coordinate, mac address and sample count
+     * @param table
+     * @param macID
+     * @param point
+     * @param count
+     * @param resultCol
+     * @return the RSS value or Var value, -110 if query returns empty set
+     */
+    private String getValue(String table, String macID, Point point, String count, String resultCol){
+        Cursor mCursor = mDb.query(true, table, new String[] {KEY_AVG_RSS}, KEY_MAC_ADDR + "=" + "? AND " + KEY_X_COORD + "=" + "? AND " + KEY_Y_COORD + "=" + "? AND " + KEY_SAMPLE_NUM + "=" + "?", new String[]{macID, Integer.toString(point.x), Integer.toString(point.y), count}, null, null, null, null);      
+        if (mCursor.getCount() > 0){
+        	mCursor.moveToFirst();
+        	String result = mCursor.getString(mCursor.getColumnIndex(KEY_AVG_RSS));
+        	mCursor.close();
+        	return result;
+        } else{
+        	mCursor.close();
+        	return "-110";
+        }
+    }
+    /**
+     * return max sample count
+     */
+    private int getSampleCount(String table){
+        Cursor mCursor = mDb.query(true, table, new String[] {"max(" + KEY_SAMPLE_NUM + ")"}, null, null, null, null, null, null);      
+        if (mCursor.getCount() > 0){
+        	mCursor.moveToFirst();
+        	int result = mCursor.getInt(0);
+        	mCursor.close();
+        	return result;
+        } else{
+        	mCursor.close();
+        	return -1;
+        }
+    }
+    
+}
+    

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="hello">sorry dude, nothing here...</string>
+	<string name="app_name">IndoorGPS</string>
+	<string name="searchLabel">Go to ...</string>
+	<string name="map_button">Map</string>
+	<string name="search_button">Scan</string>
+	<string name="favourites_button">My Favourites</string>
+	<string name="settings_button">Settings</string>
+	<string name="choose_dest">Choose Destination</string>
+	<string name="Samples">Num Samples</string>
+	<string name="collect">Collect</string>
+	<string name="database_button">Database</string>
+	<string name="mapfeature_button">Map Feature</string>
+	<string name="no_rows">empty</string>
+	<string name="column1">X Coordinate</string>
+	<string name="column2">Y Coordinate</string>
+	<string name="column3">MAC Address</string>
+	<string name="column4">RSS Reading</string>
+	<string name="column5">Variance</string>
+	<string name="column6">Sample No.</string>
+	<string name="update">Update</string>
+	<string name="menu_insert">Add Note</string>
+	<string name="menu_delete">Deleted Note</string>
+	<string name="edit_row">Edit Row</string>
+
+	<string name="change_map">Change Map</string>
+	<string name="search">Search</string>
+	<string name="information">Map Info</string>
+	<string name="collect_fp">Colect FP</string>
+
+	<string name="Y_Coordinate">y</string>
+	<string name="X_Coordinate">x</string>
+	<string name="NumofAP">Number of APs</string>
+
+	<string name="max_ap_descr">Set the maximum number of AP</string>
+	<string name="max_ap">AP Max</string>
+	<string name="sample_count_descr">Set the number of samples to take</string>
+	<string name="sample_count">Sample Count</string>
+
+	<string name="localize">localize</string>
+	<string name="tracking">tracking</string>
+	<string name="trackingstop">stop</string>
+	<string name="menu_dump">dump</string>
+
+	<string name="navigation">navigate</string>
+	<string name="dest1">218C</string>
+	<string name="dest2">StorageRoom</string>
+	<string name="dest3">Fountain</string>
+	<string name="dest4">Elevator</string>
+	<string name="dest5">MenWashroom</string>
+	<string name="dest6">WomenWashroom</string>
+
+
+	<string name="orientation">orientation</string>
+	<string name="orient1">North</string>
+	<string name="orient2">South</string>
+	<string name="orient3">West</string>
+	<string name="orient4">East</string>
+
+	<string name="cluster">Show Cluster</string>
+    <string name="define">Define MapFeature</string>
+
+	<string name="mapfeaturetype">Define MapFeature Type</string>
+	<string name="lm">LandMark</string>
+	<string name="dest">Destination</string>
+	<string name="turn">TurningPoint</string>
+	<string name="door">Door</string>
+	<string name="wall">Wall</string>
+	
+	<string name="cameramap">Capture New Map</string>
+	<string name="loadmap">Load from Memory</string>
+	<string name="choosemap">Create Your Map</string>
+	
+	<string name="choosemapforfeature">Change Map</string>
+	
+</resources>

@@ -1,0 +1,340 @@
+package com.IndoorGPS;
+/*
+ * TODO: completely remove display metrics if it there's no display 
+ * density issue across different display devices
+ * 
+ * */
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Point;
+import android.preference.PreferenceManager;
+import android.util.Log;
+import android.view.GestureDetector;
+import android.view.GestureDetector.OnGestureListener;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup.LayoutParams;
+
+//*************************************************************************
+//
+//					Scrollable map view class
+//
+//*************************************************************************
+class GPSMapView extends View
+{
+	private final String TAG = "GPSMapView->";
+	
+	private int scrollRate = 10;
+	private int scrollX = 0;
+	private int scrollY = 0;
+	private float onPicOffsetX = 0;
+	private float onPicOffsetY = 0;
+
+	private  boolean scrollHorizontalEnabled = true;
+	private boolean scrollVerticalEnabled = true;
+
+	////
+	
+	private Bitmap image;
+	private Bitmap bufferImage;
+	private Pin pin;
+	//private DisplayMetrics dm;
+	
+	private int maxWidth;      
+	private int maxHeight;
+
+	private int pictureWidth;
+	private int pictureHeight;
+
+	////
+
+	private Paint paint;
+	private GestureDetector gestureScanner;
+
+	////
+	////
+
+	//
+	// Constructor 1
+	//
+	public GPSMapView(Context context, Bitmap image, 
+			int width, int height, Paint paint)
+	{
+		super(context);
+		setFocusable(true);		// necessary for getting the touch events
+
+		this.image = image;
+		this.paint = paint;
+		
+		bufferImage = Bitmap.createBitmap(image);
+		//bufferImage = Bitmap.createScaledBitmap(image, 661, 854, true);
+
+		calculateSize(width, height);
+		createGestureListener();
+		
+		// setup the pin
+		Point pinLocation = new Point(0, 0);
+		
+		pin = new Pin(context, R.drawable.pin, pinLocation);
+	}
+
+	//******************************************************=
+	//
+	// Constructor 2
+	//
+	// @ with scroll enable and disable
+	//******************************************************
+	public GPSMapView(Context context, Bitmap image,
+			int width, int height, Paint paint,
+			boolean scrollHorizontal, boolean scrollVertical)
+	{
+		super(context);
+		setFocusable(true);		// necessary for getting the touch events
+		
+		this.image = image;
+		this.paint = paint;
+
+		bufferImage = Bitmap.createBitmap(image);
+		
+		calculateSize(width, height);
+		createGestureListener();
+		
+		// setup the pin
+		Point pinLocation = new Point(0, 0);
+		
+		pin = new Pin(context, R.drawable.pin, pinLocation);
+		
+		// set scrolling
+		this.scrollHorizontalEnabled = scrollHorizontal;
+		this.scrollVerticalEnabled = scrollVertical;
+	}
+	
+	//******************************************************
+	//				getPinTip
+	//
+	//@brief: report x and y to database during training
+	//******************************************************
+	public Point getPinTip()
+	{
+		return pin.getPinTip();
+	}
+
+	//******************************************************
+	//			calculateSize
+	//
+	// calculate sizes to set layout parameter
+	//
+	// width and height = screen dimensions
+	//******************************************************
+	protected void calculateSize(int width, int height)
+	{
+
+		//picture size
+		pictureWidth = image.getWidth();
+		pictureHeight = image.getHeight();
+
+		//window size
+		maxWidth = Math.min(pictureWidth, width);
+		maxHeight = Math.min(pictureHeight, height);
+
+		//layout size
+		setLayoutParams(new LayoutParams(pictureWidth, pictureHeight));
+	}
+	
+	//******************************************************
+	//
+	// create gesture listener for this view
+	//
+	//******************************************************
+	protected void createGestureListener()
+	{
+		setGestureScanner(new GestureDetector(new OnGestureListener()
+		{
+			public boolean onScroll(MotionEvent event1, MotionEvent event2, float distanceX, float distanceY) 
+			{
+				// handle map scrolling
+				Log.d("onScroll->", "entry");
+				if(pin.isPinSelected() == true)
+				{
+					//move pin
+					pin.setCenter((int)event2.getX()-30, (int)event2.getY()+20, scrollX, scrollY);
+					invalidate();
+				}
+				else
+				{
+					handleScroll(distanceX, distanceY);
+				}
+				return true;
+			}
+
+			public boolean onDown(MotionEvent event)
+			{				
+				Log.d("onDown ->", "entry");
+				
+				// check if inside the bound of pin, approximate the pin as a circle
+				pin.setPinSelected(false);
+				
+				int centerX = pin.getCenterX();
+				int centerY = pin.getCenterY();
+
+				int XContact = (int)event.getX();
+				int YContact = (int)event.getY();
+				
+				double contactDistance = Math.sqrt( (double)((centerX - XContact)*(centerX - XContact) + (centerY - YContact)*(centerY - YContact)));
+
+				if(contactDistance < pin.getRadius())
+				{
+					Log.d("onDown->", "on pin");
+					pin.setPinSelected(true);
+					pin.setScrollOffset(scrollX, scrollY);
+				}
+				
+				return true;
+			}
+
+			public boolean onFling(MotionEvent event1, MotionEvent event2, float velocityX, float velocityY)
+			{
+				// do nothing
+				return true;
+			}
+
+			public void onLongPress(MotionEvent event)
+			{
+			}
+
+			public void onShowPress(MotionEvent event)
+			{
+			}
+
+			public boolean onSingleTapUp(MotionEvent event)
+			{
+				Log.d(TAG, "tip: " + pin.getPinTip().x + " " + pin.getPinTip().y);
+				SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(getContext());
+				int allowableAP = new Integer(sharedPref.getString("maxAPPref", "100"));
+				int numSample = new Integer(sharedPref.getString("sampleCount", "3"));
+				boolean fourOTraining = sharedPref.getBoolean("4oTraining", true);
+				Log.d(TAG, "max ap is " + allowableAP + ",each has " + numSample + " samples");
+				Log.d(TAG, "Four orienation training: " + fourOTraining);
+				return true;
+			}
+		}));
+	}
+
+	//******************************************************
+	//
+	// onDraw
+	//
+	// @brief: draw the map image and a pin on the given canvas
+	//******************************************************
+	@Override
+	protected void onDraw(Canvas canvas)
+	{
+		canvas.drawBitmap(bufferImage, 0, 0, paint);
+		canvas.drawBitmap(pin.getBitmap(), pin.getPosition().x, pin.getPosition().y, paint);
+	}
+
+	//******************************************************
+	//
+	// 	handleScroll
+	//
+	//******************************************************
+	protected void handleScroll(float distX, float distY)
+	{
+		Log.d("Handle Scroll->", "entry");
+		
+		int maxScrollX = Math.max(pictureWidth - maxWidth, 0);
+		int maxScrollY = Math.max(pictureHeight - maxHeight, 0);
+
+		//X-Axis
+		if(scrollHorizontalEnabled)
+		{
+			if(distX > 6.0)
+			{
+				if (scrollX < maxScrollX - scrollRate)
+				{
+					scrollX += scrollRate;
+				}
+				else
+				{
+					scrollX = maxScrollX;
+				}
+			}
+			else if(distX < -6.0)
+			{
+				if (scrollX >= scrollRate)
+				{
+					scrollX -= scrollRate;
+				}
+				else
+				{
+					scrollX = 0;
+				}
+			}
+		}
+
+		//Y-AXIS
+		if(scrollVerticalEnabled)
+		{
+			if (distY > 6.0)
+			{
+				if (scrollY < maxScrollY - scrollRate)
+				{
+					scrollY += scrollRate;
+				}
+				else
+				{
+
+				}
+			}
+			else if (distY < -6.0)
+			{
+				if (scrollY >= scrollRate)
+				{
+					scrollY -= scrollRate;
+				}
+				else
+				{
+					scrollY = 0;
+				}
+			}
+		}
+
+		//Swap image
+		if ((scrollX <= maxWidth) && (scrollY <= maxHeight))
+		{
+			swapImage();
+			invalidate();
+		}
+	}
+
+	//******************************************************
+	//
+	// swapImage
+	//
+	//******************************************************
+	protected void swapImage()
+	{
+		Log.d("swap image->", "entry");
+		bufferImage = Bitmap.createBitmap(image, scrollX, scrollY, maxWidth, maxHeight);
+		//bufferImage = Bitmap.createScaledBitmap(image, 661, 854, true);
+	}
+
+	/**
+	 * @return the gestureScanner
+	 */
+	public GestureDetector getGestureScanner()
+	{
+		return gestureScanner;
+	}
+
+	/**
+	 * @param gestureScanner the gestureScanner to set
+	 */
+	public void setGestureScanner(GestureDetector gestureScanner)
+	{
+		this.gestureScanner = gestureScanner;
+	}
+}

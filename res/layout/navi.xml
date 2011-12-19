@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    >
+
+<RadioGroup
+	android:id="@+id/destGroup"
+    android:layout_width="wrap_content" 
+    android:layout_height="wrap_content" 
+    android:orientation="vertical"
+    >
+    <RadioButton
+    	android:id="@+id/dest1Button"
+ 	    android:layout_width="wrap_content" 
+  	    android:layout_height="wrap_content" 
+  	    android:text="@string/dest1"
+  	    />
+    <RadioButton
+    	android:id="@+id/dest2Button"
+ 	    android:layout_width="wrap_content" 
+  	    android:layout_height="wrap_content" 
+  	    android:text="@string/dest2"
+  	    />
+    <RadioButton
+    	android:id="@+id/dest3Button"
+ 	    android:layout_width="wrap_content" 
+  	    android:layout_height="wrap_content" 
+  	    android:text="@string/dest3"
+  	    />
+    <RadioButton
+    	android:id="@+id/dest4Button"
+ 	    android:layout_width="wrap_content" 
+  	    android:layout_height="wrap_content" 
+  	    android:text="@string/dest4"
+  	    /> 
+    <RadioButton
+    	android:id="@+id/dest5Button"
+ 	    android:layout_width="wrap_content" 
+  	    android:layout_height="wrap_content" 
+  	    android:text="@string/dest5"
+  	    />  
+    <RadioButton
+    	android:id="@+id/dest6Button"
+ 	    android:layout_width="wrap_content" 
+  	    android:layout_height="wrap_content" 
+  	    android:text="@string/dest6"
+  	    /> 	     	    
+</RadioGroup>
+
+</LinearLayout>

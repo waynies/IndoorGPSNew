@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="fill_parent" android:layout_height="wrap_content"
+	android:orientation="horizontal" android:paddingLeft="5dp"
+	android:paddingRight="5dp" android:weightSum="1">
+
+	<TextView android:id="@+id/itemName" android:onClick="Demonstrate.selected"
+		android:text="Test view" android:layout_height="52dp" android:layout_width="match_parent"/>
+</LinearLayout>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="fill_parent" 
+	android:layout_height="fill_parent"
+	android:background="@drawable/background" >
+	
+  <LinearLayout android:layout_width="fill_parent"  android:layout_height="fill_parent" android:orientation="vertical">
+	<LinearLayout android:layout_weight="0.3" android:layout_height="0dp" android:layout_width="fill_parent"/>
+	
+	<TableLayout android:layout_width="fill_parent" android:layout_weight="0.4" android:layout_height="0dp">
+		<LinearLayout android:layout_height="fill_parent" android:layout_weight="0.5">
+			<Button
+					android:id="@+id/MapButton" 
+					android:text="@string/map_button" 
+					android:background="@drawable/btn_orange"
+					android:textColor="#FFFFFF"
+					android:textStyle="bold"
+					android:layout_weight="0.5"
+					android:layout_marginLeft="1dp"
+					android:layout_marginRight="2dp"
+					android:layout_width="fill_parent"
+					android:layout_height="fill_parent"
+					android:drawableLeft="@drawable/map" />
+					
+			<Button 
+					android:id="@+id/SearchButton"
+					android:text="@string/search_button" 
+					android:background="@drawable/btn_orange"
+					android:textColor="#FFFFFF"
+					android:textStyle="bold"
+					android:layout_weight="0.5"
+					android:layout_marginLeft="1dp"
+					android:layout_marginRight="2dp"
+					android:layout_width="fill_parent"
+					android:layout_height="fill_parent"
+					android:drawableLeft="@drawable/find" />	
+		</LinearLayout>
+		
+		<LinearLayout android:layout_height="fill_parent" android:layout_weight="0.5">
+			<Button 
+					android:id="@+id/FavoritesButton"
+					android:text="@string/favourites_button"
+					android:background="@drawable/btn_orange"
+					android:textColor="#FFFFFF"
+					android:textStyle="bold"
+					android:layout_marginLeft="1dp"
+					android:layout_weight="0.5"
+					android:layout_marginRight="2dp"
+					android:layout_width="fill_parent"
+					android:layout_height="fill_parent"
+					android:drawableLeft="@drawable/favorites"/>
+			<Button 
+					android:id="@+id/SettingsButton"
+					android:text="@string/settings_button"
+					android:background="@drawable/btn_orange"
+					android:textColor="#FFFFFF"
+					android:textStyle="bold"
+					android:layout_weight="0.5"
+					android:layout_marginLeft="2dp"
+					android:layout_marginRight="1dp"
+					android:layout_width="fill_parent"
+					android:layout_height="fill_parent"
+					android:drawableLeft="@drawable/settings"/>
+		</LinearLayout>
+		
+		<LinearLayout android:layout_height="fill_parent" android:layout_weight="0.5">
+			<Button 
+					android:id="@+id/DatabaseButton"
+					android:text="@string/database_button"
+					android:background="@drawable/btn_orange"
+					android:textColor="#FFFFFF"
+					android:textStyle="bold"
+					android:layout_marginLeft="1dp"
+					android:layout_weight="0.5"
+					android:layout_marginRight="2dp"
+					android:layout_width="fill_parent"
+					android:layout_height="fill_parent"
+					android:drawableLeft="@drawable/database"/>
+		
+			<Button 
+					android:id="@+id/MapFeatureButton"
+					android:text="@string/mapfeature_button"
+					android:background="@drawable/btn_orange"
+					android:textColor="#FFFFFF"
+					android:textStyle="bold"
+					android:layout_marginLeft="2dp"
+					android:layout_weight="0.5"
+					android:layout_marginRight="1dp"
+					android:layout_width="fill_parent"
+					android:layout_height="fill_parent"
+					android:drawableLeft="@drawable/cluster"/>
+		</LinearLayout>
+	</TableLayout>
+	<LinearLayout android:layout_weight="0.3" android:layout_height="0dp" android:layout_width="fill_parent"/>				
+ </LinearLayout>  
+
+</FrameLayout>

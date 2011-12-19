@@ -1,0 +1,101 @@
+/**
+ * 
+ */
+package com.IndoorGPS;
+
+
+import android.app.Activity;
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+
+public class RowEdit extends Activity {
+	private EditText mColumn1;
+	private EditText mColumn2;
+	private EditText mColumn3;
+	private Long mRowId;
+	private EditText mColumn4;
+	private EditText mColumn5;
+	private EditText mColumn6;	
+
+	/* (non-Javadoc)
+	 * @see android.app.Activity#onCreate(android.os.Bundle)
+	 */
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		// TODO Auto-generated method stub
+		super.onCreate(savedInstanceState);
+		
+		setContentView(R.layout.row_edit);		
+		setTitle(R.string.edit_row);
+		mColumn1 = (EditText) findViewById(R.id.column1);
+		mColumn2 = (EditText) findViewById(R.id.column2);
+		mColumn3 = (EditText) findViewById(R.id.column3);		
+		mColumn4 = (EditText) findViewById(R.id.column4);
+		mColumn5 = (EditText) findViewById(R.id.column5);
+		mColumn6 = (EditText) findViewById(R.id.column6);		
+	
+		Button updateButton = (Button) findViewById(R.id.update);
+		
+		mRowId = null;
+		Bundle extras = getIntent().getExtras();
+		if(extras != null){
+
+			String column1 = extras.getString(DBManager.KEY_X_COORD);
+			String column2 = extras.getString(DBManager.KEY_Y_COORD);
+			String column3 = extras.getString(DBManager.KEY_MAC_ADDR);
+			String column4 = extras.getString(DBManager.KEY_AVG_RSS);
+			String column5 = extras.getString(DBManager.KEY_VARIANCE);
+			String column6 = extras.getString(DBManager.KEY_SAMPLE_NUM);
+			
+			mRowId = extras.getLong(DBManager.KEY_ROWID);
+			
+			if (column1 != null){
+				mColumn1.setText(column1);
+			}
+			if (column2 != null){
+				mColumn2.setText(column2);
+			}
+			if (column3 != null){
+				mColumn3.setText(column3);
+			}
+
+			if (column4 != null){
+				mColumn4.setText(column4);
+			}
+			if (column5 != null){
+				mColumn5.setText(column5);
+			}
+			if (column6 != null){
+				mColumn6.setText(column6);
+			}
+
+		}
+		updateButton.setOnClickListener(new View.OnClickListener() {
+						
+			@Override
+			public void onClick(View v) {
+				// TODO Auto-generated method stub
+				Bundle bundle = new Bundle();
+
+				bundle.putString(DBManager.KEY_X_COORD, mColumn1.getText().toString());
+				bundle.putString(DBManager.KEY_Y_COORD, mColumn2.getText().toString());
+				bundle.putString(DBManager.KEY_MAC_ADDR, mColumn3.getText().toString());
+				bundle.putString(DBManager.KEY_AVG_RSS, mColumn4.getText().toString());
+				bundle.putString(DBManager.KEY_VARIANCE, mColumn5.getText().toString());
+				bundle.putString(DBManager.KEY_SAMPLE_NUM, mColumn6.getText().toString());
+			
+				if (mRowId != null){
+					bundle.putLong(DBManager.KEY_ROWID, mRowId);
+				}
+				
+				Intent mIntent = new Intent();
+				mIntent.putExtras(bundle);
+				setResult(RESULT_OK, mIntent);
+				finish();
+			}
+		});
+	}
+}

@@ -1,0 +1,630 @@
+package com.IndoorGPS;
+
+import java.io.File;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Paint;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
+import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.Display;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.Toast;
+
+import com.IndoorGPS.LocalizerBasicClass.ObtainFPDB;
+
+/**
+ * @author: Yibo Yu
+ * Dec. 2010 as part of a final design project
+ * */
+public class MapActivity extends Activity
+{
+	private final String MSG_TAG = "MapActivity ->";
+	
+	// TODO: this path is temporary
+	private static String Bahen4 = "/sdcard/Bahen4.jpg";
+
+	private String mapFilePath;
+	private File mapFile;
+	
+	// dimension of the screen, in pixels
+	private int screenWidth;
+	private int screenHeight;
+	
+	// shared preference settings
+	private SharedPreferences sharedPrefs;
+	private String appMode;
+	private int APSampleCount;
+	private int MAX_AP_NUM;
+	private boolean is4OEnabled;
+	
+	// Map view and bitmap
+	private Bitmap bm;
+	private GPSMapView gpsMapView;
+	private DisplayMetrics dm;
+	
+	// WiFi scanning related
+	private WifiManager wifiManager;
+	private ReceiverWifi receiverWifi;
+	private List<ScanResult> wifiList;
+	private HashMap<String, List<Integer>> accumulatedScanResult;
+	private HashMap<String, Double> averageMap;
+	private HashMap<String, Boolean> orientationStatus;
+	
+	// DBManager
+	private DBManager dbManager;
+	private String targetDBTable;
+	
+	// progress dialog
+	private ProgressDialog progDialog;
+	private double progIncrement;
+	private int progSteps;
+	
+	//*****************************************************************
+	//		onCreate
+	//
+	//*****************************************************************
+	@Override
+	public void onCreate(Bundle savedInstanceState)
+	{
+		super.onCreate(savedInstanceState);
+		Utilities.initUtil(this);
+		
+		orientationStatus = new HashMap<String, Boolean>();
+		orientationStatus.put(DBManager.DATABASE_TABLE_N, false);
+		orientationStatus.put(DBManager.DATABASE_TABLE_E, false);
+		orientationStatus.put(DBManager.DATABASE_TABLE_S, false);
+		orientationStatus.put(DBManager.DATABASE_TABLE_W, false);
+		
+		progDialog = new ProgressDialog(this);
+		progDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+		progIncrement = 0;
+		progSteps = 0;
+		
+		// get shared preferences
+		sharedPrefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
+		updatePrefSettings();
+		
+		accumulatedScanResult = new HashMap<String, List<Integer>>();
+		averageMap = new HashMap<String, Double>();
+		
+		// initiate WiFi manager
+		wifiManager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
+		if(wifiManager.isWifiEnabled() != true)
+		{
+			enableWifi();
+		}
+		
+		receiverWifi = new ReceiverWifi();
+		registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+		
+		// open database
+		dbManager = new DBManager(this);
+		dbManager.open();
+		targetDBTable = DBManager.DATABASE_TABLE;
+		
+		// query display metrics for MapView
+		WindowManager w = getWindowManager();
+		Display disp = w.getDefaultDisplay();
+		dm = new DisplayMetrics();
+		disp.getMetrics(dm);
+
+		// set this map activity to full screen
+		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+		requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+		// check map file and load it
+		mapFilePath = Bahen4;
+		mapFile = new File(mapFilePath);
+		if(!mapFile.exists())
+		{ 
+			Toast.makeText(this, "map file not found.", Toast.LENGTH_SHORT).show();
+			return;
+		}
+		bm = BitmapFactory.decodeFile(mapFilePath);
+
+		screenWidth = disp.getWidth();
+		screenHeight = disp.getHeight();
+		
+		// paint for drawing points in localizer map view
+		// should be moved to localizer map view class
+		Paint paint = new Paint();
+		paint.setColor(0xFFFFFF00);
+		
+		if (appMode.equalsIgnoreCase("Localizer mode")){
+			gpsMapView = new LocalizerMapView(this, bm, screenWidth, screenHeight,paint, true, true);
+		}else{
+			gpsMapView = new GPSMapView(this, bm, screenWidth, screenHeight, null, true, true);
+		}
+		setContentView(gpsMapView);
+	}
+
+	//*****************************************************************
+	//		onCreateOptionsMenu
+	//
+	//
+	//
+	//*****************************************************************
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu)
+	{
+		Log.d(MSG_TAG, "onCreateOptionsMenu entry");
+		updatePrefSettings();
+		
+	    MenuInflater inflater = getMenuInflater();
+	    if(appMode.equalsIgnoreCase("Localizer mode")){
+	    	inflater.inflate(R.menu.locmapmenu, menu);
+	    }else{
+	    	inflater.inflate(R.menu.mapmenu, menu);
+	    }
+	    
+	    
+	    Log.d(MSG_TAG, "onCreateOptionsMenu exit");
+	    return true;
+	}
+	
+	//*****************************************************************
+	//		onOptionsItemSelected
+	//
+	//
+	//
+	//*****************************************************************
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item)
+	{
+	    // Handle item selection
+	    switch (item.getItemId())
+	    {
+	    case R.id.change_map:
+	        changeMap();
+	        return true;
+	    case R.id.search:
+	        searchLocation();
+	        return true;
+	    case R.id.map_info:
+	    	displayMapInfo();
+	    	return true;
+	    case R.id.collect_fp:
+	    	handleFPCollection();
+	    	return true;
+	    case R.id.localize:
+	    	localizeSelfPosition();
+	    	return true;
+	    default:
+	        return super.onOptionsItemSelected(item);
+	    }
+	}
+	
+	//*********************************************************************
+	//		changeMap
+	//
+	//
+	//
+	//*********************************************************************
+	private void changeMap()
+	{
+		Toast.makeText(this, "not implemented yet", Toast.LENGTH_SHORT).show();
+	}
+	
+	//*********************************************************************
+	//		searchLocation
+	//
+	//
+	//
+	//*********************************************************************
+	private void searchLocation()
+	{
+	}
+	
+	//*********************************************************************
+	//		displayMapInfo
+	//
+	//
+	//
+	//*********************************************************************
+	private void displayMapInfo()
+	{
+		String title = "Information";
+		String msg = "height: " + screenHeight + "\nWidth: " + screenWidth;
+		
+		Utilities.displayMsgBox(title, msg);
+	}
+	
+	//*********************************************************************
+	//		handleFPCollection
+	//
+	//
+	// implements finger print collecting functionality
+	//*********************************************************************
+	private void handleFPCollection()
+	{   
+		updatePrefSettings();
+		
+		AlertDialog.Builder alertBuilder = new AlertDialog.Builder(this);
+		alertBuilder.setSingleChoiceItems(R.array.orientation_list, 4, new DialogInterface.OnClickListener() {
+			
+			@Override
+			public void onClick(DialogInterface dialog, int which)
+			{
+				if(which == 0)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_N : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 1)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_E : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 2)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_S : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 3)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_W : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 4)
+				{
+					targetDBTable = DBManager.DATABASE_TABLE;
+				}				
+			}
+		});
+		
+		AlertDialog alert = alertBuilder.create();
+		alert.setTitle("Choose your current orientation.");
+		alert.setIcon(R.drawable.icon_compass);
+		alert.setCancelable(true);
+		alert.setCanceledOnTouchOutside(true);
+
+		// OK button
+		alert.setButton("OK", new DialogInterface.OnClickListener() {
+			
+			@Override
+			public void onClick(DialogInterface dialog, int which)
+			{
+				Log.d(MSG_TAG, "Starting scan with table " + targetDBTable);
+				
+				// setup a progress dialog and start scan
+				progDialog.setMessage("Collecting RSS, please standby...");
+				progDialog.show();
+				progIncrement = 100/APSampleCount;
+				progSteps = APSampleCount;
+				
+				wifiManager.startScan();
+			}
+		});
+		
+		// Cancel button
+		alert.setButton2("Cancel", new DialogInterface.OnClickListener() {
+			
+			@Override
+			public void onClick(DialogInterface dialog, int which)
+			{
+				// empty
+			}
+		});
+		
+		alert.show();
+	}
+	
+	//*********************************************************************
+	//		handleFPCollection
+	//
+	//
+	// implements finger print collecting functionality
+	//*********************************************************************
+	private void localizeSelfPosition()
+	{   
+		updatePrefSettings();
+		
+		AlertDialog.Builder alertBuilder = new AlertDialog.Builder(this);
+		alertBuilder.setSingleChoiceItems(R.array.orientation_list, 4, new DialogInterface.OnClickListener() {
+			
+			@Override
+			public void onClick(DialogInterface dialog, int which)
+			{
+				if(which == 0)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_N : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 1)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_E : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 2)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_S : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 3)
+				{
+					targetDBTable = (is4OEnabled == true) ? DBManager.DATABASE_TABLE_W : DBManager.DATABASE_TABLE;
+				}
+				else if(which == 4)
+				{
+					targetDBTable = DBManager.DATABASE_TABLE;
+				}				
+			}
+		});
+		
+		AlertDialog alert = alertBuilder.create();
+		alert.setTitle("Choose your current orientation.");
+		alert.setIcon(R.drawable.icon_compass);
+		alert.setCancelable(true);
+		alert.setCanceledOnTouchOutside(true);
+
+		// OK button
+		alert.setButton("OK", new DialogInterface.OnClickListener() {
+			
+			@Override
+			public void onClick(DialogInterface dialog, int which)
+			{
+				Log.d(MSG_TAG, "Starting scan with table " + targetDBTable);
+				
+				// setup a progress dialog and start scan
+				progDialog.setMessage("Collecting RSS, please standby...");
+				progDialog.show();
+				progIncrement = 100/APSampleCount;
+				progSteps = APSampleCount;
+				
+				wifiManager.startScan();
+			}
+		});
+		
+		// Cancel button
+		alert.setButton2("Cancel", new DialogInterface.OnClickListener() {
+			
+			@Override
+			public void onClick(DialogInterface dialog, int which)
+			{
+				// empty
+			}
+		});
+		
+		alert.show();
+	}
+	
+	//*********************************************************************
+	//		onTouchEvent
+	//
+	//
+	// @brief: Invoke GPSMapView's gesture scanner to handle screen motion
+	//			events
+	//*********************************************************************
+	@Override
+	public boolean onTouchEvent(MotionEvent event)
+	{
+		return gpsMapView.getGestureScanner().onTouchEvent(event);
+	}
+	
+	 //*********************************************************
+    //		onStart
+    //
+    //
+    //*********************************************************
+    @Override
+	public void onStart()
+    {
+    	super.onStart();
+    	dbManager.open();
+    	registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+    }
+    
+    //*********************************************************
+    //		onPause
+    //
+    //
+    //*********************************************************
+    @Override
+	public void onPause()
+    {
+    	dbManager.close();
+    	super.onPause();
+    }
+    
+    //*********************************************************
+    //		onResume
+    //
+    //
+    //*********************************************************
+    @Override
+	public void onResume()
+    {
+    	updatePrefSettings();
+    	dbManager.open();
+    	registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+    	super.onResume();
+    }
+    
+    //*********************************************************
+    //		onStop
+    //
+    //
+    //*********************************************************
+    @Override
+	public void onStop()
+    {
+    	unregisterReceiver(receiverWifi);
+    	dbManager.close();
+    	super.onStop();
+    }
+    
+    //*********************************************************
+    //		onDestroy
+    //
+    //
+    //*********************************************************
+    @Override
+	public void onDestroy()
+    {
+    	dbManager.close();
+    	super.onStop();
+    }
+    
+    //*********************************************************
+    //		ReceiverWifi
+    //
+    //	@brief: broadcast receiver for WiFi scanning
+    //			puts results in ObtainFPDB class
+    //*********************************************************
+    class ReceiverWifi extends BroadcastReceiver
+    {
+    	@Override
+		public void onReceive(Context c, Intent intent)
+    	{
+    		Log.d(MSG_TAG, "onReceive entry");
+    		
+    		wifiList = wifiManager.getScanResults();
+    		//Collections.sort(wifiList, new SortByRss());
+    		
+    		if(wifiList == null)
+    		{
+    			Log.d("wifi receiver", "wifilist null");
+    			return;
+    		}
+    		
+    		if (APSampleCount > 0)
+    		{   
+    			ObtainFPDB.appendScanResults(wifiList, accumulatedScanResult);
+    			
+		        APSampleCount--;
+		        progDialog.setProgress((int) Math.round(progIncrement) * (progSteps - APSampleCount));
+	    		wifiManager.startScan();
+    		}
+    		else if(APSampleCount == 0)
+    		{
+    			if(appMode.equals("Training mode"))
+    			{
+    				int sampleCountSetting = new Integer(sharedPrefs.getString("sampleCount", "3"));
+    				
+    				ObtainFPDB.postProcessScanResults(
+    						accumulatedScanResult,
+    						sampleCountSetting,
+    						averageMap);
+    				
+    				ObtainFPDB.storeScanResults(
+    						targetDBTable,
+    						gpsMapView.getPinTip(),
+    						averageMap, dbManager);
+    				
+    				orientationStatus.put(targetDBTable, true);
+    				
+    				if(isCollectionComplete() == true || is4OEnabled == false)
+    				{
+    					//ObtainFPDB.processRSSinDB(dbManager, gpsMapView.getPinTip(), is4OEnabled);
+    					updatePrefSettings();
+    				}
+					progDialog.dismiss();
+    			}
+    			
+    			Utilities.closeFile();
+
+    			APSampleCount--;
+    		}
+
+    		Log.d(MSG_TAG, "onReceive exit");
+    	}
+    }
+    
+    //*********************************************************
+    //			selectAPs
+    //
+    //	@brief: select APs according to RSS
+    //*********************************************************
+    public void selectAPs(List<ScanResult> resultList, List<ScanResult> new_resultList, int numAPs)
+    {
+    	Collections.sort(resultList, new SortByRss());
+    	new_resultList.clear();
+    	
+    	for(int i = 0; i < numAPs; i++)
+    	{
+    		new_resultList.add(resultList.get(i));
+    	}
+    }
+    
+    //*********************************************************
+    //			SortByRss
+    //
+    //override comparator to sort by RSSs
+    //
+    //*********************************************************
+    class SortByRss implements Comparator<ScanResult>
+    {
+        public int compare(ScanResult s1, ScanResult s2) 
+        {
+            if (s1.level < s2.level)
+            {
+            	return 1;
+            }
+            if (s1.level == s2.level)
+            {
+            	return 0;
+            }
+            else
+            {
+            	return -1;
+            }
+        }
+    }
+    
+    //*********************************************************
+    //		enableWifi
+    //*********************************************************
+    private void enableWifi()
+    {
+    	this.wifiManager.setWifiEnabled(true);
+    	try
+    	{
+    		Thread.sleep(5000);
+    	} catch(InterruptedException e)
+    	{
+    		// nothing
+    	}
+    	Log.d(MSG_TAG, "wifi enabled~");
+    }
+    
+    //*********************************************************
+    //		updatePrefSettings
+    //*********************************************************
+    private void updatePrefSettings()
+    {
+		MAX_AP_NUM = new Integer(sharedPrefs.getString("maxAPPref", "100"));
+		APSampleCount = new Integer(sharedPrefs.getString("sampleCount", "3"));
+		appMode = sharedPrefs.getString("app_mode_pref", "Training mode");
+		is4OEnabled = sharedPrefs.getBoolean("4oTraining", false);
+    }
+    
+    //*********************************************************
+    //		isCollectionComplete
+    //
+    // @brief: check the status of RSS readings for all
+    //		orientations. return true if they are all ready
+    //*********************************************************
+    private boolean isCollectionComplete()
+    {
+		return (orientationStatus.get(DBManager.DATABASE_TABLE_N)
+				&& orientationStatus.get(DBManager.DATABASE_TABLE_E)
+				&& orientationStatus.get(DBManager.DATABASE_TABLE_S)
+				&& orientationStatus.get(DBManager.DATABASE_TABLE_W));
+    }
+}

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+<ListPreference
+    android:title="Application Mode"
+    android:summary="Switch between application modes"
+    android:key="app_mode_pref"
+    android:entries="@array/app_mode"
+    android:entryValues="@array/app_mode"
+    android:defaultValue="Navigation mode"
+    />
+
+<ListPreference
+    android:title="Testing Mode"
+    android:summary="Switch between test and debug"
+    android:key="test_mode_pref"
+    android:entries="@array/test_mode"
+    android:entryValues="@array/test_mode"
+    android:defaultValue="Debug"
+    />
+    
+<ListPreference
+    android:title="Building"
+    android:summary="Choose the building"
+    android:key="building"
+    android:entries="@array/building_array"
+    android:entryValues="@array/building_array"
+    android:defaultValue="Bahen"
+    />
+
+<ListPreference
+    android:title="Floor"
+    android:summary="Choose the floor"
+    android:key="floor"
+    android:entries="@array/floor_array"
+    android:entryValues="@array/floor_array"
+    android:defaultValue="4"
+    />
+    
+    
+<ListPreference
+    android:title="Max number of AP"
+    android:summary="Select the max number of APs"
+    android:key="maxAPPref"
+    android:defaultValue="100"
+    android:entries="@array/max_ap_array"
+    android:entryValues="@array/ap_array_values"
+    />
+
+<ListPreference
+    android:title="Samples to take"
+    android:summary="This preference allows to select the number of samples to take"
+    android:key="sampleCount"
+    android:defaultValue="3"
+    android:entries="@array/sample_count_array"
+    android:entryValues="@array/sample_count_array"
+    />
+
+<ListPreference
+    android:title="APs to use"
+    android:summary="This preference allows to select the number of aps used for localization"
+    android:key="Num_AP_Loc"
+    android:defaultValue="10"
+    android:entries="@array/num_ap_array"
+    android:entryValues="@array/num_ap_array"
+    />
+
+<CheckBoxPreference
+    android:title="Use Four Orientations"
+    android:summary="Enable 4-orientation training"
+    android:key="4oTraining"
+    android:defaultValue="true"
+    />
+
+<CheckBoxPreference
+    android:title="Load Database"
+    android:summary="Load Database without AP"
+    android:key="LoadDB"
+    android:defaultValue="false"
+    />
+       
+</PreferenceScreen>

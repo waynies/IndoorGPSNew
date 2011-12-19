@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+      <item android:id="@+id/localize"
+          android:icon="@drawable/icon_my_location"
+          android:title="@string/localize"
+          />
+      <item android:id="@+id/tracking"
+          android:icon="@drawable/icon_tracking"
+          android:title="@string/tracking"
+          />
+      <item android:id="@+id/trackstop"
+          android:icon="@drawable/icon_info"
+          android:title="@string/trackingstop"
+          />
+      <item android:id="@+id/navigation"
+          android:icon="@drawable/icon_direction"
+          android:title="@string/navigation"
+          />
+          
+</menu>
